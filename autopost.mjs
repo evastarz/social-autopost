@@ -330,6 +330,31 @@ async function runSite(site, dry) {
 //   telegram            invia l'ultimo articolo sul canale Telegram
 //   facebook-controllo  verifica Pagina e token e rilegge l'anteprima, SENZA pubblicare
 //   facebook-pubblica   pubblica davvero l'ultimo articolo sulla Pagina (da cancellare a mano)
+// Controlli senza pubblicare: canali Telegram (nome) e account X (utente collegato alle chiavi).
+async function checkOthers(site) {
+  if (sec('TG_BOT_TOKEN') && sec('TG_CHAT_ID')) {
+    for (const chat of sec('TG_CHAT_ID').split(',').map((c) => c.trim()).filter(Boolean)) {
+      try {
+        const j = await (await fetch(`https://api.telegram.org/bot${sec('TG_BOT_TOKEN')}/getChat?` + new URLSearchParams({ chat_id: chat }))).json();
+        console.log(j.ok ? `✅ Telegram: canale "${j.result.title}"` : `❌ Telegram ${chat}: ${j.description}`);
+      } catch (e) {
+        console.log(`❌ Telegram ${chat}: ${e.message}`);
+      }
+    }
+  } else console.log('ℹ️ Telegram non configurato per questo sito.');
+  if (sec('X_API_KEY') && sec('X_API_SECRET') && sec('X_ACCESS_TOKEN') && sec('X_ACCESS_SECRET')) {
+    try {
+      const url = 'https://api.twitter.com/2/users/me';
+      const auth = oauthHeader('GET', url, {}, { consumerKey: sec('X_API_KEY'), consumerSecret: sec('X_API_SECRET'), token: sec('X_ACCESS_TOKEN'), tokenSecret: sec('X_ACCESS_SECRET') });
+      const res = await fetch(url, { headers: { Authorization: auth } });
+      const j = await res.json().catch(() => ({}));
+      console.log(res.ok ? `✅ X: account @${j.data?.username} (chiavi valide)` : `❌ X: ${j.detail || j.title || res.status}${res.status === 402 ? ' (serve credito sul piano a consumo)' : ''}`);
+    } catch (e) {
+      console.log(`❌ X: ${e.message}`);
+    }
+  } else console.log('ℹ️ X non configurato per questo sito.');
+}
+
 async function runTest(kind, site) {
   console.log(`\n=== Prova ${kind}: ${site.name} ===`);
   loadSecrets(site.prefix);
@@ -345,6 +370,7 @@ async function runTest(kind, site) {
     }
     return;
   }
+  if (kind === 'facebook-controllo') await checkOthers(site);
   if (!(sec('FB_PAGE_ID') && sec('FB_PAGE_TOKEN'))) throw new Error(`Mancano ${site.prefix}_FB_PAGE_ID e/o ${site.prefix}_FB_PAGE_TOKEN`);
   if (kind === 'facebook-controllo') {
     const url = `https://graph.facebook.com/v21.0/${sec('FB_PAGE_ID')}?` + new URLSearchParams({ fields: 'name,link', access_token: await fbToken() });
