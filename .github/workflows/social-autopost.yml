@@ -10,12 +10,16 @@ on:
         type: boolean
         default: false
       test_site:
-        description: 'Prova Telegram: scegli un sito per inviare sul canale il suo ultimo articolo (non registra nulla)'
+        description: 'Prova manuale (non registra nulla). Scegli cosa provare, oppure "nessuna prova" per il normale giro.'
         type: choice
         options:
           - nessuna prova
-          - sf
-          - tie
+          - facebook-controllo-sf
+          - facebook-pubblica-sf
+          - telegram-sf
+          - facebook-controllo-tie
+          - facebook-pubblica-tie
+          - telegram-tie
         default: nessuna prova
 
 permissions:
@@ -40,7 +44,8 @@ jobs:
           TEST_SITE: ${{ inputs.test_site }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          if [ "$TEST_SITE" = "sf" ] || [ "$TEST_SITE" = "tie" ]; then node autopost.mjs --test-telegram --site="$TEST_SITE"
+          if [ "$TEST_SITE" != "nessuna prova" ] && [ -n "$TEST_SITE" ]; then
+            node autopost.mjs --test="${TEST_SITE%-*}" --site="${TEST_SITE##*-}"
           elif [ "$DRY_RUN" = "true" ]; then node autopost.mjs --dry-run
           else node autopost.mjs; fi
       - name: Salva l'elenco dei già pubblicati

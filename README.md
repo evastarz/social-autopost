@@ -54,11 +54,13 @@ funzionano comunque).
 Su <https://developer.x.com> crea un'app con permessi **Read and write**; genera *API Key & Secret* e
 *Access Token & Secret* dell'account che deve pubblicare. Piano gratuito: circa 500 post al mese.
 
-## Messaggio di prova su Telegram
+## Prove manuali (non registrano nulla)
 
-*Actions* → "Pubblica nuovi articoli sui social" → *Run workflow* → nel menu **Prova Telegram** scegli `sf` (ScontrinoFelice)
-o `tie` (TuttoInEdicola) → *Run workflow*. Invia sul canale l'ultimo articolo, senza registrare nulla: poi cancella il messaggio
-a mano. Serve per vedere l'anteprima vera (e controllare che il bot sia amministratore del canale).
+*Actions* → "Pubblica nuovi articoli sui social" → *Run workflow* → menu **Prova manuale**:
+
+- `facebook-controllo-sf` / `-tie`: verifica che Pagina e token funzionino e rilegge l'anteprima, **senza pubblicare**.
+- `facebook-pubblica-sf` / `-tie`: pubblica davvero l'ultimo articolo sulla Pagina (poi cancellalo a mano).
+- `telegram-sf` / `-tie`: invia l'ultimo articolo sul canale Telegram (poi cancellalo a mano).
 
 ## Avvio e prove
 

@@ -297,29 +297,54 @@ async function runSite(site, dry) {
   return failures;
 }
 
-// Prova: invia l'ULTIMO articolo del sito sul canale Telegram, senza salvare nulla nel registro.
-async function testTelegram(site) {
-  console.log(`\n=== Prova Telegram: ${site.name} ===`);
+// Prove manuali, senza toccare il registro. Tipi:
+//   telegram            invia l'ultimo articolo sul canale Telegram
+//   facebook-controllo  verifica Pagina e token e rilegge l'anteprima, SENZA pubblicare
+//   facebook-pubblica   pubblica davvero l'ultimo articolo sulla Pagina (da cancellare a mano)
+async function runTest(kind, site) {
+  console.log(`\n=== Prova ${kind}: ${site.name} ===`);
   loadSecrets(site.prefix);
-  if (!(sec('TG_BOT_TOKEN') && sec('TG_CHAT_ID'))) throw new Error(`Mancano ${site.prefix}_TG_BOT_TOKEN e/o ${site.prefix}_TG_CHAT_ID`);
   const items = parseFeed(await fetchFeed(site.feed)).sort((a, b) => b.date - a.date);
   if (!items.length) throw new Error('Il feed non contiene articoli');
-  const id = await postTelegram(items[0]);
-  console.log(`✅ Messaggio di prova inviato (${id}): "${items[0].title}". Controlla il canale e cancellalo a mano.`);
+  const latest = items[0];
+
+  if (kind === 'telegram') {
+    if (!(sec('TG_BOT_TOKEN') && sec('TG_CHAT_ID'))) throw new Error(`Mancano ${site.prefix}_TG_BOT_TOKEN e/o ${site.prefix}_TG_CHAT_ID`);
+    const id = await postTelegram(latest);
+    console.log(`✅ Messaggio di prova inviato (${id}): "${latest.title}". Controlla il canale e cancellalo a mano.`);
+    return;
+  }
+  if (!(sec('FB_PAGE_ID') && sec('FB_PAGE_TOKEN'))) throw new Error(`Mancano ${site.prefix}_FB_PAGE_ID e/o ${site.prefix}_FB_PAGE_TOKEN`);
+  if (kind === 'facebook-controllo') {
+    const url = `https://graph.facebook.com/v21.0/${sec('FB_PAGE_ID')}?` + new URLSearchParams({ fields: 'name,link', access_token: sec('FB_PAGE_TOKEN') });
+    const res = await fetch(url);
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || json.error) throw new Error(`Facebook: ${json.error?.message || res.status}`);
+    console.log(`✅ Token valido. Pagina: "${json.name}" ${json.link || ''}`);
+    await refreshFacebookPreview(latest.link);
+    console.log('Nessun post è stato pubblicato (controllo). Per provare la pubblicazione scegli "facebook-pubblica".');
+    return;
+  }
+  if (kind === 'facebook-pubblica') {
+    const id = await postFacebook(latest);
+    console.log(`✅ Post di prova pubblicato (${id}): "${latest.title}". Cancellalo dalla Pagina a mano.`);
+    return;
+  }
+  throw new Error(`Tipo di prova sconosciuto: ${kind}`);
 }
 
 async function main() {
   const dry = process.argv.includes('--dry-run');
-  const test = process.argv.includes('--test-telegram');
+  const test = process.argv.find((a) => a.startsWith('--test='))?.slice(7);
   const only = process.argv.find((a) => a.startsWith('--site='))?.slice(7);
   const sites = JSON.parse(await readFile(path.join(HERE, 'sites.json'), 'utf8')).filter((s) => !only || s.id === only);
   if (!sites.length) throw new Error('Nessun sito trovato in sites.json');
-  if (test && !only) throw new Error('Per la prova indica il sito: --site=sf oppure --site=tie');
+  if (test && !only) throw new Error('Per la prova indica il sito, es. --test=telegram --site=sf');
 
   let failures = 0;
   for (const site of sites) {
     try {
-      if (test) await testTelegram(site);
+      if (test) await runTest(test, site);
       else failures += await runSite(site, dry);
     } catch (e) {
       failures++; // un sito rotto non blocca gli altri
