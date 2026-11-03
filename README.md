@@ -7,6 +7,8 @@ Gira sui server di GitHub: il PC può restare spento.
 - Post = solo **titolo + link**; l'anteprima la crea il social dal link.
 - Prima di ogni post su Facebook lo script fa **rileggere la pagina** a Facebook (come "Scrapa di nuovo" nel Debugger di
   condivisione), così l'immagine dell'anteprima è quella aggiornata.
+- Anche su **Telegram** l'anteprima mostra l'immagine aggiornata: lo script chiede a Telegram di rileggere la pagina
+  (indirizzo con parametro unico solo per l'anteprima; nel messaggio il link resta pulito).
 - Primo avvio di ogni sito: segna gli articoli già esistenti come "visti" e **non** li pubblica.
 - Pubblica solo articoli di meno di 48 ore, al massimo 3 per volta, mai due volte lo stesso.
 - Se un social o un sito dà errore, il run diventa rosso su GitHub (arriva una mail), gli altri siti vanno avanti e al giro

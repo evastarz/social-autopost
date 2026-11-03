@@ -1,6 +1,6 @@
 // Prove senza rete: node test.mjs
 import assert from 'node:assert/strict';
-import { parseFeed, decodeEntities, xText, facebookText, telegramText, oauthHeader } from './autopost.mjs';
+import { parseFeed, decodeEntities, xText, facebookText, telegramText, freshPreviewUrl, oauthHeader } from './autopost.mjs';
 
 assert.equal(decodeEntities('Bell&#8217;Italia &amp; co'), 'Bell’Italia & co');
 
@@ -20,6 +20,9 @@ assert.equal(facebookText(it), '📰 Bell’Italia con Agenda 2027');
 assert.equal(telegramText(it), '📰 Bell’Italia con Agenda 2027\nhttps://tuttoinedicola.it/a/');
 const long = { ...it, title: 'Titolo '.repeat(60) };
 assert.ok(xText(long).replace(long.link, 'x'.repeat(23)).length <= 280);
+
+assert.equal(freshPreviewUrl('https://x.it/a/', 5), 'https://x.it/a/?tgpreview=5');
+assert.equal(freshPreviewUrl('https://x.it/?p=1', 5), 'https://x.it/?p=1&tgpreview=5');
 
 // Esempio ufficiale della documentazione X/Twitter (firma OAuth 1.0a)
 const h = oauthHeader('POST', 'https://api.twitter.com/1.1/statuses/update.json',

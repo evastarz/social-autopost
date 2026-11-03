@@ -121,14 +121,34 @@ async function postFacebook(item) {
 
 // ---------- Telegram ----------
 
+// Telegram tiene in memoria l'anteprima di ogni indirizzo (anche con l'immagine vecchia). Per l'anteprima
+// usiamo lo stesso indirizzo con un parametro unico: per Telegram è "nuovo" e rilegge la pagina. WordPress
+// ignora il parametro. Nel testo del messaggio resta il link pulito.
+export function freshPreviewUrl(link, stamp = Date.now()) {
+  return link + (link.includes('?') ? '&' : '?') + 'tgpreview=' + stamp;
+}
+
+async function logOgImage(url) {
+  try {
+    const html = await (await fetch(url, { headers: { 'User-Agent': 'autopost/1.0' }, signal: AbortSignal.timeout(15000) })).text();
+    const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+    console.log(m ? `🖼️ Immagine di anteprima: ${decodeEntities(m[1])}` : '⚠️ La pagina non ha og:image: l\'anteprima potrebbe non avere immagine.');
+  } catch (e) {
+    console.warn(`⚠️ Controllo immagine non riuscito: ${e.message}`);
+  }
+}
+
 async function postTelegram(item) {
+  const previewUrl = freshPreviewUrl(item.link);
+  await logOgImage(previewUrl);
   const res = await fetch(`https://api.telegram.org/bot${sec('TG_BOT_TOKEN')}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chat_id: sec('TG_CHAT_ID'),
       text: telegramText(item),
-      link_preview_options: { url: item.link, prefer_large_media: true },
+      link_preview_options: { url: previewUrl, prefer_large_media: true },
     }),
   });
   const json = await res.json().catch(() => ({}));
