@@ -1,6 +1,6 @@
 # Autopost: nuovi articoli dei siti → Facebook, Telegram (e X)
 
-Ogni mezz'ora GitHub controlla l'RSS dei siti elencati in `sites.json` (ora **TuttoInEdicola** e **ScontrinoFelice**) e
+Ogni 15 minuti circa GitHub controlla l'RSS dei siti elencati in `sites.json` (ora **TuttoInEdicola** e **ScontrinoFelice**) e
 pubblica gli articoli nuovi sulla Pagina Facebook, sul canale Telegram (e su X, se configurato) **di quel sito**.
 Gira sui server di GitHub: il PC può restare spento.
 

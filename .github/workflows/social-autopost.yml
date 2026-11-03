@@ -2,7 +2,7 @@ name: Pubblica nuovi articoli sui social
 
 on:
   schedule:
-    - cron: '7,37 * * * *' # ogni mezz'ora (GitHub può ritardare di qualche minuto)
+    - cron: '4,19,34,49 * * * *' # ogni 15 minuti, fuori dai picchi di GitHub (che può comunque ritardare)
   workflow_dispatch:
     inputs:
       dry_run:
