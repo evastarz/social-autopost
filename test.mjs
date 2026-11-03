@@ -17,7 +17,7 @@ assert.equal(it.excerpt, 'È già in edicola l’Agenda');
 assert.deepEqual(it.categories, ['Omaggi in Edicola', "Bell'Italia"]);
 assert.equal(xText(it), 'Bell’Italia con Agenda 2027\n\nhttps://tuttoinedicola.it/a/');
 assert.equal(facebookText(it), 'Bell’Italia con Agenda 2027');
-assert.equal(telegramText(it), 'Bell’Italia con Agenda 2027\nhttps://tuttoinedicola.it/a/');
+assert.equal(telegramText(it), 'Bell’Italia con Agenda 2027\n\nhttps://tuttoinedicola.it/a/');
 const long = { ...it, title: 'Titolo '.repeat(60) };
 assert.ok(xText(long).replace(long.link, 'x'.repeat(23)).length <= 280);
 

@@ -17,6 +17,11 @@ dal giro successivo (entro ~50 minuti): per applicarlo subito, *Run workflow* co
 - Se un social o un sito dà errore, il run diventa rosso su GitHub (arriva una mail), gli altri siti vanno avanti e al giro
   dopo riprova. Un social è attivo solo se ha tutte le sue chiavi.
 
+## Spegnere un social per un sito (senza toccare i segreti)
+
+In `sites.json`, aggiungi `"disabled": ["x"]` (o `"facebook"`, `"telegram"`) al sito: quel social non viene usato **e non manda avvisi
+di errore**. Per riattivarlo basta togliere la voce. Ora: X è spento per TuttoInEdicola (finché non c'è credito sul suo account X).
+
 ## Aggiungere un sito
 
 Una riga in `sites.json` (`id`, `name`, `feed`, `prefix`) e i segreti con quel prefisso. Niente altro.

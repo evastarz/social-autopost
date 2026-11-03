@@ -190,7 +190,7 @@ export function facebookText(item) {
 }
 
 export function telegramText(item) {
-  return `${item.title}\n${item.link}`;
+  return `${item.title}\n\n${item.link}`; // riga vuota tra titolo e link
 }
 
 export function xText(item) {
@@ -322,7 +322,7 @@ async function postX(item) {
 // I social attivi per il sito corrente. TG_CHAT_ID può contenere PIÙ canali separati da virgola
 // (es. "@canale1,@canale2"): ognuno ha il suo "già pubblicato", così un errore su uno non duplica sull'altro.
 // Il primo canale mantiene il nome storico "telegram" (compatibile con i registri esistenti).
-function networksFor() {
+function networksFor(site) {
   const chats = sec('TG_CHAT_ID').split(',').map((c) => c.trim()).filter(Boolean);
   const telegram = (chats.length ? chats : ['']).map((chat, i) => ({
     name: i === 0 ? 'telegram' : `telegram:${chat}`,
@@ -330,7 +330,8 @@ function networksFor() {
     post: (item) => postTelegram(item, chat),
     preview: telegramText,
   }));
-  return [
+  const off = (site?.disabled || []).map((x) => String(x).toLowerCase()); // social spenti per questo sito (sites.json)
+  const list = [
     { name: 'facebook', enabled: () => sec('FB_PAGE_ID') && sec('FB_PAGE_TOKEN'), post: postFacebook, preview: facebookText },
     ...telegram,
     {
@@ -340,6 +341,7 @@ function networksFor() {
       preview: xText,
     },
   ];
+  return list.filter((n) => !off.includes(n.name.split(':')[0]));
 }
 
 // Scarica il feed riprovando fino a 3 volte (i siti ogni tanto rispondono male per un attimo).
@@ -420,7 +422,7 @@ async function runSite(site, dry) {
 
   const items = parseFeed(await fetchFeed(env('FEED_URL', site.feed))).sort((a, b) => a.date - b.date); // dal più vecchio
 
-  const all = networksFor();
+  const all = networksFor(site);
   const active = dry ? all : all.filter((n) => n.enabled());
   if (!active.length) throw new Error(`Nessun social configurato per ${site.name}: mancano i segreti ${site.prefix}_… (vedi README).`);
 
@@ -487,7 +489,8 @@ async function checkOthers(site) {
       }
     }
   } else console.log('ℹ️ Telegram non configurato per questo sito.');
-  if (sec('X_API_KEY') && sec('X_API_SECRET') && sec('X_ACCESS_TOKEN') && sec('X_ACCESS_SECRET')) {
+  if ((site.disabled || []).map((x) => String(x).toLowerCase()).includes('x')) console.log('ℹ️ X disattivato per questo sito in sites.json (nessun post, nessun avviso).');
+  else if (sec('X_API_KEY') && sec('X_API_SECRET') && sec('X_ACCESS_TOKEN') && sec('X_ACCESS_SECRET')) {
     try {
       const url = 'https://api.twitter.com/2/users/me';
       const auth = oauthHeader('GET', url, {}, { consumerKey: sec('X_API_KEY'), consumerSecret: sec('X_API_SECRET'), token: sec('X_ACCESS_TOKEN'), tokenSecret: sec('X_ACCESS_SECRET') });
@@ -509,7 +512,7 @@ async function runTest(kind, site) {
 
   if (kind === 'telegram') {
     if (!(sec('TG_BOT_TOKEN') && sec('TG_CHAT_ID'))) throw new Error(`Mancano ${site.prefix}_TG_BOT_TOKEN e/o ${site.prefix}_TG_CHAT_ID`);
-    for (const n of networksFor().filter((n) => n.name.startsWith('telegram') && n.enabled())) {
+    for (const n of networksFor(site).filter((n) => n.name.startsWith('telegram') && n.enabled())) {
       const id = await n.post(latest);
       console.log(`✅ Messaggio di prova inviato a ${n.name} (${id}): "${latest.title}". Controlla il canale e cancellalo a mano.`);
     }
