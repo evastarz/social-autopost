@@ -20,7 +20,7 @@ dal giro successivo (entro ~50 minuti): per applicarlo subito, *Run workflow* co
 ## Spegnere un social per un sito (senza toccare i segreti)
 
 In `sites.json`, aggiungi `"disabled": ["x"]` (o `"facebook"`, `"telegram"`) al sito: quel social non viene usato **e non manda avvisi
-di errore**. Per riattivarlo basta togliere la voce. Ora: X è spento per TuttoInEdicola (finché non c'è credito sul suo account X).
+di errore**. Per riattivarlo basta togliere la voce. Ora: X è spento per entrambi i siti (il piano X è a consumo e serve credito sull'account X).
 
 ## Aggiungere un sito
 
