@@ -54,6 +54,12 @@ funzionano comunque).
 Su <https://developer.x.com> crea un'app con permessi **Read and write**; genera *API Key & Secret* e
 *Access Token & Secret* dell'account che deve pubblicare. Piano gratuito: circa 500 post al mese.
 
+## Messaggio di prova su Telegram
+
+*Actions* → "Pubblica nuovi articoli sui social" → *Run workflow* → nel campo **Prova Telegram** scrivi `sf` (ScontrinoFelice)
+o `tie` (TuttoInEdicola) → *Run workflow*. Invia sul canale l'ultimo articolo, senza registrare nulla: poi cancella il messaggio
+a mano. Serve per vedere l'anteprima vera (e controllare che il bot sia amministratore del canale).
+
 ## Avvio e prove
 
 *Actions* → "Pubblica nuovi articoli sui social" → *Run workflow* (spunta "simulazione" per vedere i testi senza

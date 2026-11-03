@@ -9,6 +9,10 @@ on:
         description: 'Solo simulazione (non pubblica niente)'
         type: boolean
         default: false
+      test_site:
+        description: 'Prova Telegram: scrivi sf (ScontrinoFelice) o tie (TuttoInEdicola) per inviare sul canale l’ultimo articolo, senza registrare nulla. Altrimenti lascia vuoto.'
+        type: string
+        default: ''
 
 permissions:
   contents: write # serve per salvare l'elenco degli articoli già pubblicati
@@ -29,9 +33,14 @@ jobs:
       - name: Pubblica
         env:
           SECRETS_JSON: ${{ toJSON(secrets) }} # tutte le chiavi, con prefisso del sito (TIE_..., SF_...)
-        run: node autopost.mjs ${{ inputs.dry_run && '--dry-run' || '' }}
+          TEST_SITE: ${{ inputs.test_site }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ -n "$TEST_SITE" ]; then node autopost.mjs --test-telegram --site="$TEST_SITE"
+          elif [ "$DRY_RUN" = "true" ]; then node autopost.mjs --dry-run
+          else node autopost.mjs; fi
       - name: Salva l'elenco dei già pubblicati
-        if: always() && !inputs.dry_run
+        if: always() && !inputs.dry_run && inputs.test_site == ''
         run: |
           git config user.name "autopost-bot"
           git config user.email "autopost-bot@users.noreply.github.com"

@@ -297,16 +297,30 @@ async function runSite(site, dry) {
   return failures;
 }
 
+// Prova: invia l'ULTIMO articolo del sito sul canale Telegram, senza salvare nulla nel registro.
+async function testTelegram(site) {
+  console.log(`\n=== Prova Telegram: ${site.name} ===`);
+  loadSecrets(site.prefix);
+  if (!(sec('TG_BOT_TOKEN') && sec('TG_CHAT_ID'))) throw new Error(`Mancano ${site.prefix}_TG_BOT_TOKEN e/o ${site.prefix}_TG_CHAT_ID`);
+  const items = parseFeed(await fetchFeed(site.feed)).sort((a, b) => b.date - a.date);
+  if (!items.length) throw new Error('Il feed non contiene articoli');
+  const id = await postTelegram(items[0]);
+  console.log(`✅ Messaggio di prova inviato (${id}): "${items[0].title}". Controlla il canale e cancellalo a mano.`);
+}
+
 async function main() {
   const dry = process.argv.includes('--dry-run');
+  const test = process.argv.includes('--test-telegram');
   const only = process.argv.find((a) => a.startsWith('--site='))?.slice(7);
   const sites = JSON.parse(await readFile(path.join(HERE, 'sites.json'), 'utf8')).filter((s) => !only || s.id === only);
   if (!sites.length) throw new Error('Nessun sito trovato in sites.json');
+  if (test && !only) throw new Error('Per la prova indica il sito: --site=sf oppure --site=tie');
 
   let failures = 0;
   for (const site of sites) {
     try {
-      failures += await runSite(site, dry);
+      if (test) await testTelegram(site);
+      else failures += await runSite(site, dry);
     } catch (e) {
       failures++; // un sito rotto non blocca gli altri
       console.error(`❌ ${site.name}: ${e.message}`);
