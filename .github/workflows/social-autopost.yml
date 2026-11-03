@@ -1,8 +1,11 @@
 name: Pubblica nuovi articoli sui social
 
+# Come parte: GitHub non avvia in modo affidabile le esecuzioni programmate (cron), quindi ogni esecuzione
+# resta attiva circa 50 minuti, controlla i siti ogni 5 minuti e, alla fine, rilancia sé stessa.
+# Il cron resta come riserva se la catena si interrompe.
 on:
   schedule:
-    - cron: '4,19,34,49 * * * *' # ogni 15 minuti, fuori dai picchi di GitHub (che può comunque ritardare)
+    - cron: '4,19,34,49 * * * *'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -23,16 +26,18 @@ on:
         default: nessuna prova
 
 permissions:
-  contents: write # serve per salvare l'elenco degli articoli già pubblicati
+  contents: write # salva l'elenco dei già pubblicati
+  actions: write  # permette di rilanciare il workflow da solo
 
+# Le prove manuali hanno un gruppo a parte, così non aspettano la fine del giro in corso.
 concurrency:
-  group: social-autopost
+  group: ${{ ((inputs.test_site != '' && inputs.test_site != 'nessuna prova') || inputs.dry_run) && 'social-autopost-prova' || 'social-autopost' }}
   cancel-in-progress: false
 
 jobs:
   autopost:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 65
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -43,15 +48,32 @@ jobs:
           SECRETS_JSON: ${{ toJSON(secrets) }} # tutte le chiavi, con prefisso del sito (TIE_..., SF_...)
           TEST_SITE: ${{ inputs.test_site }}
           DRY_RUN: ${{ inputs.dry_run }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "$TEST_SITE" != "nessuna prova" ] && [ -n "$TEST_SITE" ]; then
+          if [ -n "$TEST_SITE" ] && [ "$TEST_SITE" != "nessuna prova" ]; then
             node autopost.mjs --test="${TEST_SITE%-*}" --site="${TEST_SITE##*-}"
-          elif [ "$DRY_RUN" = "true" ]; then node autopost.mjs --dry-run
-          else node autopost.mjs; fi
-      - name: Salva l'elenco dei già pubblicati
-        if: always() && !inputs.dry_run && (inputs.test_site == '' || inputs.test_site == 'nessuna prova')
-        run: |
+            exit $?
+          fi
+          if [ "$DRY_RUN" = "true" ]; then
+            node autopost.mjs --dry-run
+            exit $?
+          fi
+
+          # Giro normale: controlla ogni 5 minuti per ~50 minuti, poi si rilancia.
           git config user.name "autopost-bot"
           git config user.email "autopost-bot@users.noreply.github.com"
-          git add state
-          git diff --cached --quiet || (git commit -m "autopost: aggiorna elenco articoli pubblicati" && git pull --rebase && git push)
+          end=$(( $(date +%s) + 3000 ))
+          failed=0
+          while true; do
+            node autopost.mjs || { failed=1; echo "::error::Errore in questo controllo (vedi sopra)"; }
+            git add state
+            if ! git diff --cached --quiet; then
+              git commit -q -m "autopost: aggiorna elenco articoli pubblicati"
+              git pull -q --rebase origin main && git push -q || echo "::warning::Salvataggio dell'elenco non riuscito"
+            fi
+            [ "$(date +%s)" -ge "$end" ] && break
+            sleep 300
+          done
+          # Rilancia il prossimo giro (se non riesce, ci pensa il cron di riserva).
+          gh workflow run social-autopost.yml --ref main || echo "::warning::Rilancio non riuscito"
+          exit $failed

@@ -1,8 +1,11 @@
 # Autopost: nuovi articoli dei siti → Facebook, Telegram (e X)
 
-Ogni 15 minuti circa GitHub controlla l'RSS dei siti elencati in `sites.json` (ora **TuttoInEdicola** e **ScontrinoFelice**) e
+Ogni 5 minuti circa il programma controlla l'RSS dei siti elencati in `sites.json` (ora **TuttoInEdicola** e **ScontrinoFelice**) e
 pubblica gli articoli nuovi sulla Pagina Facebook, sul canale Telegram (e su X, se configurato) **di quel sito**.
 Gira sui server di GitHub: il PC può restare spento.
+Come parte: il cron di GitHub non è affidabile, quindi ogni esecuzione resta attiva ~50 minuti (controllo ogni 5 minuti) e
+alla fine **rilancia sé stessa**; il cron ogni 15 minuti resta come riserva. Se cambi un segreto, il nuovo valore vale
+dal giro successivo (entro ~50 minuti): per applicarlo subito, *Run workflow* con "nessuna prova".
 
 - Post = solo **titolo + link**; l'anteprima la crea il social dal link.
 - Prima di ogni post su Facebook lo script fa **rileggere la pagina** a Facebook (come "Scrapa di nuovo" nel Debugger di
