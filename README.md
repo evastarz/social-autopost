@@ -52,7 +52,8 @@ Il programma ricava da solo il token della Pagina a ogni esecuzione. (Funziona a
 
 1. Su Telegram scrivi a **@BotFather** → `/newbot` → ti dà il token (= `*_TG_BOT_TOKEN`).
 2. Aggiungi il bot come **amministratore** del canale con il permesso di pubblicare.
-3. `*_TG_CHAT_ID`: `@nomedelcanale` se pubblico; se privato, scrivi un messaggio nel canale e apri
+3. **Più canali per lo stesso sito**: in `*_TG_CHAT_ID` scrivi gli id separati da virgola (es. `@canale1,@canale2`); lo stesso bot deve essere amministratore di ognuno.
+4. `*_TG_CHAT_ID`: `@nomedelcanale` se pubblico; se privato, scrivi un messaggio nel canale e apri
    `https://api.telegram.org/bot<TOKEN>/getUpdates` (l'id inizia con `-100`).
 
 ## Attivare X (facoltativo)

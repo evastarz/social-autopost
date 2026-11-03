@@ -7,7 +7,7 @@
 //
 // Variabili d'ambiente (un social è attivo solo se ha le sue chiavi):
 //   [PREFISSO_]FB_PAGE_ID, FB_PAGE_TOKEN                          -> Facebook
-//   TG_BOT_TOKEN, TG_CHAT_ID                           -> Telegram
+//   TG_BOT_TOKEN, TG_CHAT_ID (anche più canali: @a,@b)  -> Telegram
 //   X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET -> X
 //   Le chiavi hanno il prefisso del sito (TIE_, SF_...), vedi sites.json e README.
 //   MAX_AGE_HOURS (default 48)  articoli più vecchi non vengono mai pubblicati
@@ -155,14 +155,14 @@ async function logOgImage(url) {
   }
 }
 
-async function postTelegram(item) {
+async function postTelegram(item, chat = sec('TG_CHAT_ID')) {
   const previewUrl = freshPreviewUrl(item.link);
   await logOgImage(previewUrl);
   const res = await fetch(`https://api.telegram.org/bot${sec('TG_BOT_TOKEN')}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      chat_id: sec('TG_CHAT_ID'),
+      chat_id: chat,
       text: telegramText(item),
       link_preview_options: { url: previewUrl, prefer_large_media: true },
     }),
@@ -215,16 +215,28 @@ async function postX(item) {
 
 // ---------- Programma principale ----------
 
-const NETWORKS = [
-  { name: 'facebook', enabled: () => sec('FB_PAGE_ID') && sec('FB_PAGE_TOKEN'), post: postFacebook, preview: facebookText },
-  { name: 'telegram', enabled: () => sec('TG_BOT_TOKEN') && sec('TG_CHAT_ID'), post: postTelegram, preview: telegramText },
-  {
-    name: 'x',
-    enabled: () => sec('X_API_KEY') && sec('X_API_SECRET') && sec('X_ACCESS_TOKEN') && sec('X_ACCESS_SECRET'),
-    post: postX,
-    preview: xText,
-  },
-];
+// I social attivi per il sito corrente. TG_CHAT_ID può contenere PIÙ canali separati da virgola
+// (es. "@canale1,@canale2"): ognuno ha il suo "già pubblicato", così un errore su uno non duplica sull'altro.
+// Il primo canale mantiene il nome storico "telegram" (compatibile con i registri esistenti).
+function networksFor() {
+  const chats = sec('TG_CHAT_ID').split(',').map((c) => c.trim()).filter(Boolean);
+  const telegram = (chats.length ? chats : ['']).map((chat, i) => ({
+    name: i === 0 ? 'telegram' : `telegram:${chat}`,
+    enabled: () => sec('TG_BOT_TOKEN') && chat,
+    post: (item) => postTelegram(item, chat),
+    preview: telegramText,
+  }));
+  return [
+    { name: 'facebook', enabled: () => sec('FB_PAGE_ID') && sec('FB_PAGE_TOKEN'), post: postFacebook, preview: facebookText },
+    ...telegram,
+    {
+      name: 'x',
+      enabled: () => sec('X_API_KEY') && sec('X_API_SECRET') && sec('X_ACCESS_TOKEN') && sec('X_ACCESS_SECRET'),
+      post: postX,
+      preview: xText,
+    },
+  ];
+}
 
 // Scarica il feed riprovando fino a 3 volte (i siti ogni tanto rispondono male per un attimo).
 async function fetchFeed(url) {
@@ -264,7 +276,8 @@ async function runSite(site, dry) {
 
   const items = parseFeed(await fetchFeed(env('FEED_URL', site.feed))).sort((a, b) => a.date - b.date); // dal più vecchio
 
-  const active = dry ? NETWORKS : NETWORKS.filter((n) => n.enabled());
+  const all = networksFor();
+  const active = dry ? all : all.filter((n) => n.enabled());
   if (!active.length) throw new Error(`Nessun social configurato per ${site.name}: mancano i segreti ${site.prefix}_… (vedi README).`);
 
   // Primo avvio di questo sito: segna come "già visti" gli articoli attuali, senza pubblicarli.
@@ -326,8 +339,10 @@ async function runTest(kind, site) {
 
   if (kind === 'telegram') {
     if (!(sec('TG_BOT_TOKEN') && sec('TG_CHAT_ID'))) throw new Error(`Mancano ${site.prefix}_TG_BOT_TOKEN e/o ${site.prefix}_TG_CHAT_ID`);
-    const id = await postTelegram(latest);
-    console.log(`✅ Messaggio di prova inviato (${id}): "${latest.title}". Controlla il canale e cancellalo a mano.`);
+    for (const n of networksFor().filter((n) => n.name.startsWith('telegram') && n.enabled())) {
+      const id = await n.post(latest);
+      console.log(`✅ Messaggio di prova inviato a ${n.name} (${id}): "${latest.title}". Controlla il canale e cancellalo a mano.`);
+    }
     return;
   }
   if (!(sec('FB_PAGE_ID') && sec('FB_PAGE_TOKEN'))) throw new Error(`Mancano ${site.prefix}_FB_PAGE_ID e/o ${site.prefix}_FB_PAGE_TOKEN`);
