@@ -458,7 +458,7 @@ async function runSite(site, dry) {
       } catch (e) {
         failures++;
         console.error(`❌ ${n.name}: "${it.title}" — ${e.message}`);
-        if (!dry) await sendAlert(`${site.id}|${n.name}|${e.message.slice(0, 80)}`, await buildAlert(site, n.name, it, e, state));
+        if (!dry) await sendAlert(`${site.id}|${n.name}|${redact(e.message).slice(0, 80)}`, await buildAlert(site, n.name, it, e, state));
       }
       await save(); // salva subito: niente doppioni se crasha dopo
     }
@@ -571,7 +571,7 @@ async function main() {
     } catch (e) {
       failures++; // un sito rotto non blocca gli altri
       console.error(`❌ ${site.name}: ${e.message}`);
-      if (!dry && !test) await sendAlert(`${site.id}|sito|${e.message.slice(0, 80)}`, await buildAlert(site, 'sito', null, e, null));
+      if (!dry && !test) await sendAlert(`${site.id}|sito|${redact(e.message).slice(0, 80)}`, await buildAlert(site, 'sito', null, e, null));
     }
   }
   if (failures) process.exitCode = 1; // run rosso su GitHub -> arriva una mail
