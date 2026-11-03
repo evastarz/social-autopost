@@ -35,6 +35,51 @@ const loadSecrets = (prefix) => {
     CURRENT[k] = ALL_SECRETS[`${prefix}_${k}`] ?? process.env[`${prefix}_${k}`] ?? '';
 };
 
+// ---------- Avvisi di errore su Telegram (chat privata di Eva) ----------
+// Segreti generali (senza prefisso): ALERT_TG_CHAT_ID (obbligatorio per attivare gli avvisi) e ALERT_TG_BOT_TOKEN
+// (facoltativo: se manca si usa il token di uno dei bot già configurati). Lo stesso errore viene segnalato
+// al massimo una volta ogni 6 ore (registro in state/alerts.json).
+const alertChat = () => String(ALL_SECRETS.ALERT_TG_CHAT_ID ?? process.env.ALERT_TG_CHAT_ID ?? '').trim();
+const alertToken = () => {
+  const t = ALL_SECRETS.ALERT_TG_BOT_TOKEN ?? process.env.ALERT_TG_BOT_TOKEN;
+  if (t) return String(t).trim();
+  const k = Object.keys(ALL_SECRETS).find((x) => x.endsWith('_TG_BOT_TOKEN'));
+  return k ? String(ALL_SECRETS[k]).trim() : '';
+};
+const ALERTS_FILE = () => path.join(env('STATE_DIR', path.join(HERE, 'state')), 'alerts.json');
+
+export async function sendAlert(key, text, force = false) {
+  const chat = alertChat();
+  const token = alertToken();
+  if (!chat || !token) return false;
+  try {
+    let log = {};
+    try { log = JSON.parse(await readFile(ALERTS_FILE(), 'utf8')); } catch {}
+    const now = Date.now();
+    if (!force && key && log[key] && now - Date.parse(log[key]) < 6 * 3600e3) return false; // già segnalato da poco
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chat, text: String(text).slice(0, 3500), disable_web_page_preview: true }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || !j.ok) {
+      console.warn(`⚠️ Avviso Telegram non inviato: ${j.description || res.status}`);
+      return false;
+    }
+    if (key) {
+      log[key] = new Date().toISOString();
+      for (const k of Object.keys(log)) if (now - Date.parse(log[k]) > 7 * 86400e3) delete log[k]; // pulizia
+      await mkdir(path.dirname(ALERTS_FILE()), { recursive: true });
+      await writeFile(ALERTS_FILE(), JSON.stringify(log, null, 2) + '\n');
+    }
+    return true;
+  } catch (e) {
+    console.warn(`⚠️ Avviso Telegram non inviato: ${e.message}`);
+    return false;
+  }
+}
+
 // ---------- Lettura del feed ----------
 
 const NAMED = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
@@ -314,6 +359,7 @@ async function runSite(site, dry) {
       } catch (e) {
         failures++;
         console.error(`❌ ${n.name}: "${it.title}" — ${e.message}`);
+        if (!dry) await sendAlert(`${site.id}|${n.name}|${e.message.slice(0, 80)}`, `⚠️ ${site.name}: non sono riuscito a pubblicare su ${n.name}.\nArticolo: ${it.title}\nErrore: ${e.message}\n(Ritento ogni 5 minuti; ti riavviso tra 6 ore se persiste.)`);
       }
       await save(); // salva subito: niente doppioni se crasha dopo
     }
@@ -370,7 +416,13 @@ async function runTest(kind, site) {
     }
     return;
   }
-  if (kind === 'facebook-controllo') await checkOthers(site);
+  if (kind === 'facebook-controllo') {
+    await checkOthers(site);
+    if (alertChat()) {
+      const ok = await sendAlert(null, `✅ Prova avvisi (${site.name}): se leggi questo messaggio, gli avvisi di errore funzionano.`, true);
+      console.log(ok ? '✅ Avvisi: messaggio di prova inviato sulla tua chat privata Telegram.' : '❌ Avvisi: invio non riuscito (hai scritto /start al bot? l\'id è giusto?)');
+    } else console.log('ℹ️ Avvisi non configurati (manca il segreto ALERT_TG_CHAT_ID).');
+  }
   if (!(sec('FB_PAGE_ID') && sec('FB_PAGE_TOKEN'))) throw new Error(`Mancano ${site.prefix}_FB_PAGE_ID e/o ${site.prefix}_FB_PAGE_TOKEN`);
   if (kind === 'facebook-controllo') {
     const url = `https://graph.facebook.com/v21.0/${sec('FB_PAGE_ID')}?` + new URLSearchParams({ fields: 'name,link', access_token: await fbToken() });
@@ -420,6 +472,7 @@ async function main() {
     } catch (e) {
       failures++; // un sito rotto non blocca gli altri
       console.error(`❌ ${site.name}: ${e.message}`);
+      if (!dry && !test) await sendAlert(`${site.id}|sito|${e.message.slice(0, 80)}`, `⚠️ ${site.name}: problema nel controllo del sito.\nErrore: ${e.message}`);
     }
   }
   if (failures) process.exitCode = 1; // run rosso su GitHub -> arriva una mail
