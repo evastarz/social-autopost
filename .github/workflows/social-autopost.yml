@@ -10,9 +10,13 @@ on:
         type: boolean
         default: false
       test_site:
-        description: 'Prova Telegram: scrivi sf (ScontrinoFelice) o tie (TuttoInEdicola) per inviare sul canale l’ultimo articolo, senza registrare nulla. Altrimenti lascia vuoto.'
-        type: string
-        default: ''
+        description: 'Prova Telegram: scegli un sito per inviare sul canale il suo ultimo articolo (non registra nulla)'
+        type: choice
+        options:
+          - nessuna prova
+          - sf
+          - tie
+        default: nessuna prova
 
 permissions:
   contents: write # serve per salvare l'elenco degli articoli già pubblicati
@@ -36,11 +40,11 @@ jobs:
           TEST_SITE: ${{ inputs.test_site }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          if [ -n "$TEST_SITE" ]; then node autopost.mjs --test-telegram --site="$TEST_SITE"
+          if [ "$TEST_SITE" = "sf" ] || [ "$TEST_SITE" = "tie" ]; then node autopost.mjs --test-telegram --site="$TEST_SITE"
           elif [ "$DRY_RUN" = "true" ]; then node autopost.mjs --dry-run
           else node autopost.mjs; fi
       - name: Salva l'elenco dei già pubblicati
-        if: always() && !inputs.dry_run && inputs.test_site == ''
+        if: always() && !inputs.dry_run && (inputs.test_site == '' || inputs.test_site == 'nessuna prova')
         run: |
           git config user.name "autopost-bot"
           git config user.email "autopost-bot@users.noreply.github.com"

@@ -56,7 +56,7 @@ Su <https://developer.x.com> crea un'app con permessi **Read and write**; genera
 
 ## Messaggio di prova su Telegram
 
-*Actions* → "Pubblica nuovi articoli sui social" → *Run workflow* → nel campo **Prova Telegram** scrivi `sf` (ScontrinoFelice)
+*Actions* → "Pubblica nuovi articoli sui social" → *Run workflow* → nel menu **Prova Telegram** scegli `sf` (ScontrinoFelice)
 o `tie` (TuttoInEdicola) → *Run workflow*. Invia sul canale l'ultimo articolo, senza registrare nulla: poi cancella il messaggio
 a mano. Serve per vedere l'anteprima vera (e controllare che il bot sia amministratore del canale).
 
