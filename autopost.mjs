@@ -337,6 +337,20 @@ async function runTest(kind, site) {
     const json = await res.json().catch(() => ({}));
     if (!res.ok || json.error) throw new Error(`Facebook: ${json.error?.message || res.status}`);
     console.log(`✅ Token valido. Pagina: "${json.name}" ${json.link || ''}`);
+    // Scadenza del token salvato nei segreti (quello "grezzo", prima di ricavare il token della Pagina)
+    try {
+      const t = sec('FB_PAGE_TOKEN');
+      const dbg = await (await fetch('https://graph.facebook.com/v21.0/debug_token?' + new URLSearchParams({ input_token: t, access_token: t }))).json();
+      const d = dbg.data;
+      if (d) {
+        const mai = !d.expires_at || d.expires_at === 0;
+        console.log(`🔑 Token nei segreti: tipo ${d.type || '?'}, ${mai ? 'NON SCADE MAI ✅' : 'SCADE il ' + new Date(d.expires_at * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' ⚠️ (temporaneo: va sostituito)'}`);
+      } else {
+        console.log('🔑 Non sono riuscito a leggere la scadenza del token (' + (dbg.error?.message || 'risposta vuota') + ').');
+      }
+    } catch (e) {
+      console.log('🔑 Controllo scadenza non riuscito: ' + e.message);
+    }
     await refreshFacebookPreview(latest.link);
     console.log('Nessun post è stato pubblicato (controllo). Per provare la pubblicazione scegli "facebook-pubblica".');
     return;
