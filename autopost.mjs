@@ -82,16 +82,16 @@ const cut = (s, n) => (s.length <= n ? s : s.slice(0, n - 1).replace(/\s+\S*$/, 
 
 // Solo titolo + link: l'anteprima (immagine, titolo, descrizione) la crea il social dal link.
 export function facebookText(item) {
-  return `📰 ${item.title}`; // il link viaggia nel campo "link" e Facebook ne fa l'anteprima classica
+  return `${item.title}`; // il link viaggia nel campo "link" e Facebook ne fa l'anteprima classica
 }
 
 export function telegramText(item) {
-  return `📰 ${item.title}\n${item.link}`;
+  return `${item.title}\n${item.link}`;
 }
 
 export function xText(item) {
   // X conta ogni link come 23 caratteri, qualunque sia la lunghezza.
-  return cut(`📰 ${item.title}`, 280 - 2 - 23) + `\n\n${item.link}`;
+  return cut(`${item.title}`, 280 - 2 - 23) + `\n\n${item.link}`;
 }
 
 // ---------- Facebook ----------
