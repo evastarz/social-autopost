@@ -29,11 +29,64 @@ let ALL_SECRETS = {};
 try { ALL_SECRETS = JSON.parse(process.env.SECRETS_JSON || '{}'); } catch {}
 let CURRENT = {};
 const sec = (k) => String(CURRENT[k] ?? '').trim();
-const loadSecrets = (prefix) => {
+export const loadSecrets = (prefix) => {
   CURRENT = {};
   for (const k of ['FB_PAGE_ID','FB_PAGE_TOKEN','TG_BOT_TOKEN','TG_CHAT_ID','X_API_KEY','X_API_SECRET','X_ACCESS_TOKEN','X_ACCESS_SECRET'])
     CURRENT[k] = ALL_SECRETS[`${prefix}_${k}`] ?? process.env[`${prefix}_${k}`] ?? '';
 };
+
+// ---------- Errori con dettagli (per le "schede" di avviso) ----------
+export class ApiError extends Error {
+  constructor(message, info = {}) {
+    super(message);
+    this.info = info;
+  }
+}
+
+// Toglie dai testi ogni chiave/token/segreto (mai nei messaggi).
+const redact = (v) => {
+  let t = typeof v === 'string' ? v : JSON.stringify(v);
+  const secrets = [...Object.entries(CURRENT), ...Object.entries(ALL_SECRETS)]
+    .filter(([k]) => /TOKEN|SECRET|KEY/i.test(k))
+    .map(([, x]) => String(x ?? '').trim())
+    .filter((x) => x.length > 8);
+  for (const x of secrets) t = t.split(x).join('***');
+  return t;
+};
+
+// Ipotesi sulla causa, in base al social e al codice d'errore (aiuta a capire al volo).
+export function diagnose(network, e) {
+  const i = e.info || {};
+  const msg = `${e.message} ${e.cause?.code || ''}`;
+  if (/ENOTFOUND|ETIMEDOUT|ECONNRESET|EAI_AGAIN|fetch failed|timeout/i.test(msg) && !i.http)
+    return 'Problema di rete temporaneo (GitHub o il social non raggiungibile): di solito passa da solo.';
+  if (network === 'facebook') {
+    const c = i.error?.code;
+    if (c === 190) return 'Token Facebook non valido o scaduto: rigenera il token dell\'utente di sistema (Impostazioni aziendali → Utenti di sistema → Genera token, scadenza Mai) e aggiorna *_FB_PAGE_TOKEN.';
+    if ([200, 10, 3, 283].includes(c)) return 'Permessi mancanti: la Pagina non è assegnata all\'utente di sistema (accesso completo) o manca pages_manage_posts.';
+    if ([4, 17, 32, 613].includes(c)) return 'Limite di richieste di Facebook: aspettare, di solito si risolve da solo.';
+    if ([368, 1390008].includes(c)) return 'Facebook ha bloccato temporaneamente la pubblicazione (anti-spam).';
+    if (c === 100) return 'Richiesta non valida: controllare l\'ID della Pagina (*_FB_PAGE_ID) e che il link dell\'articolo sia raggiungibile.';
+    return 'Errore di Facebook: vedere codice e messaggio qui sopra.';
+  }
+  if (network.startsWith('telegram')) {
+    const c = i.error_code;
+    if (c === 400 && /chat not found/i.test(i.description || '')) return 'Canale non trovato: id sbagliato, o il bot non è amministratore del canale.';
+    if (c === 403) return 'Il bot è stato rimosso dal canale o bloccato.';
+    if (c === 401) return 'Token del bot sbagliato o revocato (BotFather → /mybots → API Token).';
+    if (c === 429) return 'Troppi messaggi in poco tempo (limite di Telegram): si risolve da solo.';
+    return 'Errore di Telegram: vedere descrizione qui sopra.';
+  }
+  if (network === 'x') {
+    const h = i.http;
+    if (h === 401) return 'Chiavi X sbagliate o rigenerate: ricontrollare le quattro *_X_… (API Key/Secret e Access Token/Secret).';
+    if (h === 403) return 'X rifiuta: l\'app è in sola lettura (rigenerare l\'Access Token dopo aver salvato "Read and Write") oppure testo duplicato.';
+    if (h === 402) return 'Credito X esaurito (piano a consumo): ricaricare.';
+    if (h === 429) return 'Limite di post di X raggiunto: aspettare.';
+    return 'Errore di X: vedere dettagli qui sopra.';
+  }
+  return 'Causa non riconosciuta: vedere il messaggio d\'errore.';
+}
 
 // ---------- Avvisi di errore su Telegram (chat privata di Eva) ----------
 // Segreti generali (senza prefisso): ALERT_TG_CHAT_ID (obbligatorio per attivare gli avvisi) e ALERT_TG_BOT_TOKEN
@@ -56,7 +109,10 @@ export async function sendAlert(key, text, force = false) {
     let log = {};
     try { log = JSON.parse(await readFile(ALERTS_FILE(), 'utf8')); } catch {}
     const now = Date.now();
-    if (!force && key && log[key] && now - Date.parse(log[key]) < 6 * 3600e3) return false; // già segnalato da poco
+    const prev = typeof log[key] === 'string' ? { first: log[key], last: log[key], count: 1 } : log[key];
+    if (!force && key && prev && now - Date.parse(prev.last) < 6 * 3600e3) return false; // già segnalato da poco
+    if (key && prev && typeof text === 'string') text = text.replace('{N}', String(prev.count + 1)).replace('{FIRST}', prev.first);
+    else if (typeof text === 'string') text = text.replace('{N}', '1').replace('{FIRST}', new Date().toISOString());
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -68,8 +124,11 @@ export async function sendAlert(key, text, force = false) {
       return false;
     }
     if (key) {
-      log[key] = new Date().toISOString();
-      for (const k of Object.keys(log)) if (now - Date.parse(log[k]) > 7 * 86400e3) delete log[k]; // pulizia
+      log[key] = { first: prev?.first || new Date().toISOString(), last: new Date().toISOString(), count: (prev?.count || 0) + 1 };
+      for (const k of Object.keys(log)) {
+        const l = typeof log[k] === 'string' ? log[k] : log[k].last;
+        if (now - Date.parse(l) > 7 * 86400e3) delete log[k]; // pulizia
+      }
       await mkdir(path.dirname(ALERTS_FILE()), { recursive: true });
       await writeFile(ALERTS_FILE(), JSON.stringify(log, null, 2) + '\n');
     }
@@ -176,7 +235,7 @@ async function postFacebook(item) {
   });
   const res = await fetch(`https://graph.facebook.com/v21.0/${sec('FB_PAGE_ID')}/feed`, { method: 'POST', body });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok || json.error) throw new Error(`Facebook: ${json.error?.message || res.status}`);
+  if (!res.ok || json.error) throw new ApiError(`Facebook: ${json.error?.message || res.status}`, { http: res.status, error: json.error });
   return json.id;
 }
 
@@ -213,7 +272,7 @@ async function postTelegram(item, chat = sec('TG_CHAT_ID')) {
     }),
   });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok || !json.ok) throw new Error(`Telegram: ${json.description || res.status}`);
+  if (!res.ok || !json.ok) throw new ApiError(`Telegram: ${json.description || res.status}`, { http: res.status, error_code: json.error_code, description: json.description, parameters: json.parameters, canale: chat });
   return json.result?.message_id;
 }
 
@@ -254,7 +313,7 @@ async function postX(item) {
     body: JSON.stringify({ text: xText(item) }),
   });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`X: ${json.detail || json.title || res.status}`);
+  if (!res.ok) throw new ApiError(`X: ${json.detail || json.title || res.status}`, { http: res.status, title: json.title, detail: json.detail, type: json.type, errors: json.errors, limite_rimasto: res.headers.get('x-rate-limit-remaining') });
   return json.data?.id;
 }
 
@@ -297,6 +356,46 @@ async function fetchFeed(url) {
     if (i < 3) await new Promise((r) => setTimeout(r, i * 3000));
   }
   throw new Error(`Feed non raggiungibile: ${last.message}`);
+}
+
+
+// Scheda completa da incollare a Claude: contiene tutto il necessario per capire l'errore.
+export async function buildAlert(site, network, item, e, state) {
+  const i = e.info || {};
+  const lines = ['⚠️ ERRORE AUTOPOST — incolla tutto questo messaggio a Claude', ''];
+  lines.push(`Sito: ${site.name} (id ${site.id}, prefisso segreti ${site.prefix}_)`);
+  lines.push(`Social: ${network}`);
+  if (item) lines.push(`Articolo: ${item.title}`, `Link: ${item.link}`);
+  lines.push(`Errore: ${redact(e.message)}`);
+  const details = { ...i };
+  if (e.cause?.code) details.causa_rete = e.cause.code;
+  if (Object.keys(details).length) lines.push(`Dettagli tecnici: ${redact(details).slice(0, 900)}`);
+  lines.push(`Ipotesi: ${diagnose(network, e)}`);
+  lines.push('', `Quando: ${new Date().toISOString()} (UTC; in Italia +1h)`);
+  lines.push('Avviso n° {N} per questo stesso errore (primo: {FIRST}); ritento ogni 5 min, riavviso ogni 6 ore.');
+  if (state) {
+    const last = Object.entries(state.posted || {})
+      .map(([g, v]) => v[network])
+      .filter(Boolean)
+      .sort()
+      .pop();
+    lines.push(`Ultimo post riuscito su ${network}: ${last || 'nessuno finora'}`);
+  }
+  const names = ['FB_PAGE_ID', 'FB_PAGE_TOKEN', 'TG_BOT_TOKEN', 'TG_CHAT_ID', 'X_API_KEY', 'X_API_SECRET', 'X_ACCESS_TOKEN', 'X_ACCESS_SECRET'];
+  lines.push(`Segreti presenti: ${names.filter((k) => sec(k)).join(', ') || 'nessuno'}`);
+  lines.push(`Segreti mancanti: ${names.filter((k) => !sec(k)).join(', ') || 'nessuno'} (normale se un social non è usato)`);
+  if (network === 'facebook' && sec('FB_PAGE_TOKEN')) {
+    try {
+      const t = sec('FB_PAGE_TOKEN');
+      const d = (await (await fetch('https://graph.facebook.com/v21.0/debug_token?' + new URLSearchParams({ input_token: t, access_token: t }))).json()).data;
+      if (d) lines.push(`Token Facebook: tipo ${d.type}, valido ${d.is_valid ? 'sì' : 'NO'}, scadenza ${d.expires_at ? new Date(d.expires_at * 1000).toISOString() : 'mai'}, permessi ${(d.scopes || []).join(',')}${d.error ? ', errore ' + redact(d.error) : ''}`);
+    } catch {}
+  }
+  const run = process.env.GITHUB_RUN_ID ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}` : '(esecuzione locale)';
+  lines.push('', `Esecuzione GitHub: ${run}`);
+  lines.push(`Repository: ${process.env.GITHUB_REPOSITORY || 'evastarz/social-autopost'} · programma autopost.mjs · versione ${(process.env.GITHUB_SHA || '?').slice(0, 7)} · Node ${process.version}`);
+  lines.push('Contesto: il programma pubblica gli articoli dei feed RSS su Facebook, Telegram e X; i dettagli sono nel README della repository.');
+  return lines.join('\n');
 }
 
 async function runSite(site, dry) {
@@ -359,7 +458,7 @@ async function runSite(site, dry) {
       } catch (e) {
         failures++;
         console.error(`❌ ${n.name}: "${it.title}" — ${e.message}`);
-        if (!dry) await sendAlert(`${site.id}|${n.name}|${e.message.slice(0, 80)}`, `⚠️ ${site.name}: non sono riuscito a pubblicare su ${n.name}.\nArticolo: ${it.title}\nErrore: ${e.message}\n(Ritento ogni 5 minuti; ti riavviso tra 6 ore se persiste.)`);
+        if (!dry) await sendAlert(`${site.id}|${n.name}|${e.message.slice(0, 80)}`, await buildAlert(site, n.name, it, e, state));
       }
       await save(); // salva subito: niente doppioni se crasha dopo
     }
@@ -472,7 +571,7 @@ async function main() {
     } catch (e) {
       failures++; // un sito rotto non blocca gli altri
       console.error(`❌ ${site.name}: ${e.message}`);
-      if (!dry && !test) await sendAlert(`${site.id}|sito|${e.message.slice(0, 80)}`, `⚠️ ${site.name}: problema nel controllo del sito.\nErrore: ${e.message}`);
+      if (!dry && !test) await sendAlert(`${site.id}|sito|${e.message.slice(0, 80)}`, await buildAlert(site, 'sito', null, e, null));
     }
   }
   if (failures) process.exitCode = 1; // run rosso su GitHub -> arriva una mail
