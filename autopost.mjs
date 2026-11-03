@@ -96,10 +96,26 @@ export function xText(item) {
 
 // ---------- Facebook ----------
 
+// Il segreto FB_PAGE_TOKEN può essere il token di una Pagina oppure quello di un "utente di sistema" (senza scadenza):
+// in quel caso a ogni esecuzione ricaviamo da lui il token della Pagina, come raccomanda Meta.
+const pageTokenCache = new Map();
+async function fbToken() {
+  const key = sec('FB_PAGE_ID') + ':' + sec('FB_PAGE_TOKEN');
+  if (pageTokenCache.has(key)) return pageTokenCache.get(key);
+  let token = sec('FB_PAGE_TOKEN');
+  try {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${sec('FB_PAGE_ID')}?` + new URLSearchParams({ fields: 'access_token', access_token: token }));
+    const json = await res.json().catch(() => ({}));
+    if (res.ok && json.access_token) token = json.access_token;
+  } catch {}
+  pageTokenCache.set(key, token);
+  return token;
+}
+
 // Equivale al "Debugger di condivisione" di Facebook (pulsante "Scrapa di nuovo"): fa rileggere
 // la pagina così l'anteprima usa l'immagine/titolo aggiornati e non quelli in cache.
 async function refreshFacebookPreview(url) {
-  const body = new URLSearchParams({ id: url, scrape: 'true', access_token: sec('FB_PAGE_TOKEN') });
+  const body = new URLSearchParams({ id: url, scrape: 'true', access_token: await fbToken() });
   const res = await fetch('https://graph.facebook.com/v21.0/', { method: 'POST', body });
   const json = await res.json().catch(() => ({}));
   if (!res.ok || json.error) console.warn(`⚠️ Aggiornamento anteprima Facebook non riuscito: ${json.error?.message || res.status}`);
@@ -111,7 +127,7 @@ async function postFacebook(item) {
   const body = new URLSearchParams({
     message: facebookText(item),
     link: item.link,
-    access_token: sec('FB_PAGE_TOKEN'),
+    access_token: await fbToken(),
   });
   const res = await fetch(`https://graph.facebook.com/v21.0/${sec('FB_PAGE_ID')}/feed`, { method: 'POST', body });
   const json = await res.json().catch(() => ({}));
@@ -316,7 +332,7 @@ async function runTest(kind, site) {
   }
   if (!(sec('FB_PAGE_ID') && sec('FB_PAGE_TOKEN'))) throw new Error(`Mancano ${site.prefix}_FB_PAGE_ID e/o ${site.prefix}_FB_PAGE_TOKEN`);
   if (kind === 'facebook-controllo') {
-    const url = `https://graph.facebook.com/v21.0/${sec('FB_PAGE_ID')}?` + new URLSearchParams({ fields: 'name,link', access_token: sec('FB_PAGE_TOKEN') });
+    const url = `https://graph.facebook.com/v21.0/${sec('FB_PAGE_ID')}?` + new URLSearchParams({ fields: 'name,link', access_token: await fbToken() });
     const res = await fetch(url);
     const json = await res.json().catch(() => ({}));
     if (!res.ok || json.error) throw new Error(`Facebook: ${json.error?.message || res.status}`);

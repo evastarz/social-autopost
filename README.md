@@ -31,7 +31,13 @@ Per ogni sito, con il suo prefisso (`TIE_` = TuttoInEdicola, `SF_` = ScontrinoFe
 …e gli stessi con `SF_` per ScontrinoFelice. Se un sito non ha ancora alcun social, il suo run dà errore (gli altri
 funzionano comunque).
 
-## Attivare Facebook (una tantum, vale per entrambe le Pagine)
+## Facebook: consigliato il token dell'"utente di sistema" (non scade)
+
+Nel portfolio business crea un **utente di sistema** con accesso completo alla Pagina e all'app, genera un token con scadenza
+**Mai** e le autorizzazioni `pages_manage_posts`, `pages_read_engagement`, `pages_show_list`, e mettilo in `*_FB_PAGE_TOKEN`.
+Il programma ricava da solo il token della Pagina a ogni esecuzione. (Funziona anche con un normale token di Pagina.)
+
+## Attivare Facebook (alternativa con token personale, vale per entrambe le Pagine)
 
 1. Su <https://developers.facebook.com> → *Le mie app* → *Crea app* (tipo **Business**). Basta **una sola app** per tutte
    le tue Pagine.
