@@ -1,0 +1,4 @@
+[
+  { "id": "tie", "name": "TuttoInEdicola", "feed": "https://tuttoinedicola.it/feed/", "prefix": "TIE" },
+  { "id": "sf", "name": "ScontrinoFelice", "feed": "https://www.scontrinofelice.it/feed/", "prefix": "SF" }
+]

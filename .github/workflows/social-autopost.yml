@@ -1,0 +1,39 @@
+name: Pubblica nuovi articoli sui social
+
+on:
+  schedule:
+    - cron: '7,37 * * * *' # ogni mezz'ora (GitHub può ritardare di qualche minuto)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Solo simulazione (non pubblica niente)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # serve per salvare l'elenco degli articoli già pubblicati
+
+concurrency:
+  group: social-autopost
+  cancel-in-progress: false
+
+jobs:
+  autopost:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Pubblica
+        env:
+          SECRETS_JSON: ${{ toJSON(secrets) }} # tutte le chiavi, con prefisso del sito (TIE_..., SF_...)
+        run: node autopost.mjs ${{ inputs.dry_run && '--dry-run' || '' }}
+      - name: Salva l'elenco dei già pubblicati
+        if: always() && !inputs.dry_run
+        run: |
+          git config user.name "autopost-bot"
+          git config user.email "autopost-bot@users.noreply.github.com"
+          git add state
+          git diff --cached --quiet || (git commit -m "autopost: aggiorna elenco articoli pubblicati" && git pull --rebase && git push)
