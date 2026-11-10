@@ -625,7 +625,8 @@ async function main() {
         const since = await healthFail(site.id);
         if (Date.now() - Date.parse(since) >= 15 * 60e3) {
           failures++;
-          await sendAlert(`${site.id}|sito|${redact(e.message).slice(0, 80)}`, (await buildAlert(site, 'sito', null, e, null)).replace('Quando:', `Problema presente da: ${since}\nQuando:`));
+          await sendAlert(`${site.id}|sito`, // un solo avviso per sito (qualunque sia l'errore) ogni 6 ore
+             (await buildAlert(site, 'sito', null, e, null)).replace('Quando:', `Problema presente da: ${since}\nQuando:`));
         }
       }
     }
