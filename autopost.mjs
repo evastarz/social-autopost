@@ -616,13 +616,15 @@ async function main() {
         if (!dry) await healthOk(site.id);
       }
     } catch (e) {
-      failures++; // un sito rotto non blocca gli altri
+      // Un sito rotto non blocca gli altri.
       console.error(`❌ ${site.name}: ${e.message}`);
-      // Problemi del sito (feed non raggiungibile, ecc.): avviso solo se durano da almeno 15 minuti, così i piccoli
-      // intoppi passeggeri del server non ti disturbano.
+      if (dry || test) failures++;
+      // Problemi del sito (feed non raggiungibile, ecc.): avviso (e esecuzione "rossa" su GitHub) solo se durano da almeno
+      // 15 minuti, così i piccoli intoppi passeggeri del server non ti disturbano.
       if (!dry && !test) {
         const since = await healthFail(site.id);
         if (Date.now() - Date.parse(since) >= 15 * 60e3) {
+          failures++;
           await sendAlert(`${site.id}|sito|${redact(e.message).slice(0, 80)}`, (await buildAlert(site, 'sito', null, e, null)).replace('Quando:', `Problema presente da: ${since}\nQuando:`));
         }
       }
