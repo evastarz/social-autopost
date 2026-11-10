@@ -13,7 +13,8 @@ dal giro successivo (entro ~50 minuti): per applicarlo subito, *Run workflow* co
 - Anche su **Telegram** l'anteprima mostra l'immagine aggiornata: lo script chiede a Telegram di rileggere la pagina
   (indirizzo con parametro unico solo per l'anteprima; nel messaggio il link resta pulito).
 - Primo avvio di ogni sito: segna gli articoli già esistenti come "visti" e **non** li pubblica.
-- Pubblica solo articoli di meno di 48 ore, al massimo 3 per volta, mai due volte lo stesso.
+- Pubblica solo articoli di meno di 48 ore, al massimo 3 per volta, mai due volte lo stesso **a meno che** tu cambi la data
+  dell'articolo portandola a dopo l'ultima pubblicazione (es. la data di oggi): in quel caso lo ripubblica.
 - Se un social o un sito dà errore, il run diventa rosso su GitHub (arriva una mail), gli altri siti vanno avanti e al giro
   dopo riprova. Un social è attivo solo se ha tutte le sue chiavi.
 

@@ -434,12 +434,18 @@ async function runSite(site, dry) {
     return 0;
   }
 
-  // Un articolo "visto ma mai pubblicato" (seeded) conta come nuovo se è stato ripubblicato/ri-datato DOPO quel momento
+  // Un articolo "visto ma mai pubblicato" (seeded) conta come nuovo se è stato ripubblicato/ri-datato DOPO quel momento;
+  // uno già pubblicato torna "nuovo" se viene ri-datato dopo la pubblicazione
   // (es. i volantini che vengono aggiornati con la stessa pagina e una nuova data).
   const needs = (it, n) => {
     const e = state.posted[it.guid];
     if (!e) return true;
-    if (e[n.name]) return false;
+    // Già pubblicato su questo social: lo ripubblico solo se la data dell'articolo è stata portata DOPO l'ultima pubblicazione
+    // (es. ri-datato a oggi). Margine di 10 minuti, perché gli articoli possono uscire fino a 5 minuti prima della loro data.
+    if (e[n.name]) {
+      const t = Date.parse(e[n.name]);
+      return Number.isFinite(t) && it.date.getTime() > t + 10 * 60e3;
+    }
     if (e.seeded) return it.date.getTime() > Date.parse(e.seeded) + 60e3;
     return true;
   };
