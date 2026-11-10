@@ -8,5 +8,15 @@
     "first": "2026-11-03T17:21:12.338Z",
     "last": "2026-11-03T17:21:12.338Z",
     "count": 1
+  },
+  "tie|sito|Feed non raggiungibile: fetch failed (ERR_TLS_CERT_ALTNAME_INVALID)": {
+    "first": "2026-11-10T04:01:48.853Z",
+    "last": "2026-11-10T04:01:48.853Z",
+    "count": 1
+  },
+  "sf|sito|Feed non raggiungibile: fetch failed (ERR_TLS_CERT_ALTNAME_INVALID)": {
+    "first": "2026-11-10T04:02:08.847Z",
+    "last": "2026-11-10T04:02:08.847Z",
+    "count": 1
   }
 }
