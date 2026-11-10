@@ -574,6 +574,31 @@ async function runTest(kind, site) {
   throw new Error(`Tipo di prova sconosciuto: ${kind}`);
 }
 
+// Da quanto tempo un sito dà errore (state/health.json): serve a non avvisare per i disturbi passeggeri.
+const HEALTH_FILE = () => path.join(env('STATE_DIR', path.join(HERE, 'state')), 'health.json');
+async function readHealth() {
+  try { return JSON.parse(await readFile(HEALTH_FILE(), 'utf8')); } catch { return {}; }
+}
+async function writeHealth(h) {
+  await mkdir(path.dirname(HEALTH_FILE()), { recursive: true });
+  await writeFile(HEALTH_FILE(), JSON.stringify(h, null, 2) + '\n');
+}
+async function healthFail(id) {
+  const h = await readHealth();
+  if (!h[id]) {
+    h[id] = { since: new Date().toISOString() };
+    await writeHealth(h);
+  }
+  return h[id].since;
+}
+async function healthOk(id) {
+  const h = await readHealth();
+  if (h[id]) {
+    delete h[id];
+    await writeHealth(h);
+  }
+}
+
 async function main() {
   const dry = process.argv.includes('--dry-run');
   const test = process.argv.find((a) => a.startsWith('--test='))?.slice(7);
@@ -586,11 +611,21 @@ async function main() {
   for (const site of sites) {
     try {
       if (test) await runTest(test, site);
-      else failures += await runSite(site, dry);
+      else {
+        failures += await runSite(site, dry);
+        if (!dry) await healthOk(site.id);
+      }
     } catch (e) {
       failures++; // un sito rotto non blocca gli altri
       console.error(`❌ ${site.name}: ${e.message}`);
-      if (!dry && !test) await sendAlert(`${site.id}|sito|${redact(e.message).slice(0, 80)}`, await buildAlert(site, 'sito', null, e, null));
+      // Problemi del sito (feed non raggiungibile, ecc.): avviso solo se durano da almeno 15 minuti, così i piccoli
+      // intoppi passeggeri del server non ti disturbano.
+      if (!dry && !test) {
+        const since = await healthFail(site.id);
+        if (Date.now() - Date.parse(since) >= 15 * 60e3) {
+          await sendAlert(`${site.id}|sito|${redact(e.message).slice(0, 80)}`, (await buildAlert(site, 'sito', null, e, null)).replace('Quando:', `Problema presente da: ${since}\nQuando:`));
+        }
+      }
     }
   }
   if (failures) process.exitCode = 1; // run rosso su GitHub -> arriva una mail
