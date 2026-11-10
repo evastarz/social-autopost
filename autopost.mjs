@@ -599,6 +599,18 @@ async function healthOk(id) {
   }
 }
 
+// Registro degli intoppi dei siti (state/incidents.json): serve a vedere se si ripetono agli stessi orari.
+const INCIDENTS_FILE = () => path.join(env('STATE_DIR', path.join(HERE, 'state')), 'incidents.json');
+async function logIncident(siteId, message) {
+  try {
+    let list = [];
+    try { list = JSON.parse(await readFile(INCIDENTS_FILE(), 'utf8')); } catch {}
+    list.push({ t: new Date().toISOString(), site: siteId, errore: String(message).slice(0, 120) });
+    await mkdir(path.dirname(INCIDENTS_FILE()), { recursive: true });
+    await writeFile(INCIDENTS_FILE(), JSON.stringify(list.slice(-400), null, 1) + '\n');
+  } catch {}
+}
+
 async function main() {
   const dry = process.argv.includes('--dry-run');
   const test = process.argv.find((a) => a.startsWith('--test='))?.slice(7);
@@ -622,6 +634,7 @@ async function main() {
       // Problemi del sito (feed non raggiungibile, ecc.): avviso (e esecuzione "rossa" su GitHub) solo se durano da almeno
       // 15 minuti, così i piccoli intoppi passeggeri del server non ti disturbano.
       if (!dry && !test) {
+        await logIncident(site.id, redact(e.message));
         const since = await healthFail(site.id);
         if (Date.now() - Date.parse(since) >= 15 * 60e3) {
           failures++;

@@ -1,0 +1,47 @@
+[
+ {
+  "t": "2026-11-10T04:01:48.853Z",
+  "site": "tie",
+  "errore": "Feed non raggiungibile: fetch failed (ERR_TLS_CERT_ALTNAME_INVALID)"
+ },
+ {
+  "t": "2026-11-10T04:02:08.847Z",
+  "site": "sf",
+  "errore": "Feed non raggiungibile: fetch failed (ERR_TLS_CERT_ALTNAME_INVALID)"
+ },
+ {
+  "t": "2026-11-10T04:07:51.440Z",
+  "site": "sf",
+  "errore": "Feed non raggiungibile: fetch failed (UND_ERR_CONNECT_TIMEOUT)"
+ },
+ {
+  "t": "2026-11-10T04:24:49.483Z",
+  "site": "tie",
+  "errore": "Feed non raggiungibile: fetch failed (UND_ERR_CONNECT_TIMEOUT)"
+ },
+ {
+  "t": "2026-11-10T04:53:07.659Z",
+  "site": "tie",
+  "errore": "Feed non raggiungibile: fetch failed (ETIMEDOUT)"
+ },
+ {
+  "t": "2026-11-10T20:22:25.495Z",
+  "site": "tie",
+  "errore": "Feed non raggiungibile: fetch failed (ETIMEDOUT)"
+ },
+ {
+  "t": "2026-11-10T20:23:06.118Z",
+  "site": "sf",
+  "errore": "Feed non raggiungibile: fetch failed (UND_ERR_CONNECT_TIMEOUT)"
+ },
+ {
+  "t": "2026-11-10T20:28:18.368Z",
+  "site": "tie",
+  "errore": "Feed non raggiungibile: fetch failed (ERR_TLS_CERT_ALTNAME_INVALID)"
+ },
+ {
+  "t": "2026-11-10T20:39:59.634Z",
+  "site": "sf",
+  "errore": "Feed non raggiungibile: fetch failed (ERR_TLS_CERT_ALTNAME_INVALID)"
+ }
+]
