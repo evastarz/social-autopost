@@ -23,5 +23,10 @@
     "first": "2026-11-10T04:07:51.440Z",
     "last": "2026-11-10T04:07:51.440Z",
     "count": 1
+  },
+  "tie|sito|Feed non raggiungibile: fetch failed (UND_ERR_CONNECT_TIMEOUT)": {
+    "first": "2026-11-10T04:24:49.483Z",
+    "last": "2026-11-10T04:24:49.483Z",
+    "count": 1
   }
 }
