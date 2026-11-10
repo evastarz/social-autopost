@@ -1,14 +1,4 @@
 {
-  "tie|x|X: credits depleted": {
-    "first": "2026-11-03T15:34:49.458Z",
-    "last": "2026-11-03T15:34:49.458Z",
-    "count": 1
-  },
-  "sf|x|X: credits depleted": {
-    "first": "2026-11-03T17:21:12.338Z",
-    "last": "2026-11-03T17:21:12.338Z",
-    "count": 1
-  },
   "tie|sito|Feed non raggiungibile: fetch failed (ERR_TLS_CERT_ALTNAME_INVALID)": {
     "first": "2026-11-10T04:01:48.853Z",
     "last": "2026-11-10T04:01:48.853Z",
@@ -21,8 +11,8 @@
   },
   "sf|sito|Feed non raggiungibile: fetch failed (UND_ERR_CONNECT_TIMEOUT)": {
     "first": "2026-11-10T04:07:51.440Z",
-    "last": "2026-11-10T04:07:51.440Z",
-    "count": 1
+    "last": "2026-11-10T20:23:06.118Z",
+    "count": 2
   },
   "tie|sito|Feed non raggiungibile: fetch failed (UND_ERR_CONNECT_TIMEOUT)": {
     "first": "2026-11-10T04:24:49.483Z",
@@ -31,7 +21,7 @@
   },
   "tie|sito|Feed non raggiungibile: fetch failed (ETIMEDOUT)": {
     "first": "2026-11-10T04:53:07.659Z",
-    "last": "2026-11-10T04:53:07.659Z",
-    "count": 1
+    "last": "2026-11-10T20:22:25.495Z",
+    "count": 2
   }
 }
