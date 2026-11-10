@@ -434,10 +434,20 @@ async function runSite(site, dry) {
     return 0;
   }
 
+  // Un articolo "visto ma mai pubblicato" (seeded) conta come nuovo se è stato ripubblicato/ri-datato DOPO quel momento
+  // (es. i volantini che vengono aggiornati con la stessa pagina e una nuova data).
+  const needs = (it, n) => {
+    const e = state.posted[it.guid];
+    if (!e) return true;
+    if (e[n.name]) return false;
+    if (e.seeded) return it.date.getTime() > Date.parse(e.seeded) + 60e3;
+    return true;
+  };
+
   const now = Date.now();
   const todo = items
     .filter((it) => now - it.date.getTime() <= maxAgeMs && now >= it.date.getTime() - 300e3)
-    .filter((it) => active.some((n) => !state.posted[it.guid]?.[n.name] && !state.posted[it.guid]?.seeded))
+    .filter((it) => active.some((n) => needs(it, n)))
     .slice(0, maxPerRun);
 
   if (!todo.length) {
@@ -448,7 +458,7 @@ async function runSite(site, dry) {
   let failures = 0;
   for (const it of todo) {
     for (const n of active) {
-      if (state.posted[it.guid]?.[n.name] || state.posted[it.guid]?.seeded) continue;
+      if (!needs(it, n)) continue;
       if (dry) {
         console.log(`\n--- [${n.name}] (simulazione) ---\n${n.preview(it)}${n.name === 'facebook' ? '\n[link: ' + it.link + ']' : ''}`);
         continue;
