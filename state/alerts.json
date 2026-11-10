@@ -28,5 +28,10 @@
     "first": "2026-11-10T04:24:49.483Z",
     "last": "2026-11-10T04:24:49.483Z",
     "count": 1
+  },
+  "tie|sito|Feed non raggiungibile: fetch failed (ETIMEDOUT)": {
+    "first": "2026-11-10T04:53:07.659Z",
+    "last": "2026-11-10T04:53:07.659Z",
+    "count": 1
   }
 }
