@@ -23,6 +23,13 @@ dal giro successivo (entro ~50 minuti): per applicarlo subito, *Run workflow* co
 In `sites.json`, aggiungi `"disabled": ["x"]` (o `"facebook"`, `"telegram"`) al sito: quel social non viene usato **e non manda avvisi
 di errore**. Per riattivarlo basta togliere la voce. Ora: X è spento per entrambi i siti (il piano X è a consumo e serve credito sull'account X).
 
+## La guardia (riavvia il programma se si ferma)
+
+Il workflow `guardia.yml` controlla che il programma principale sia in esecuzione: parte appena finisce un giro e ogni ~10 minuti.
+Se non c'è nessun giro attivo lo riavvia e ti avvisa su Telegram (stesso `ALERT_TG_CHAT_ID` degli altri avvisi); se un giro risulta
+bloccato da più di 80 minuti lo interrompe e lo riavvia. Si prova da *Actions → Guardia del programma → Run workflow* con
+"Solo controllo" spuntato (dice come stanno le cose senza riavviare niente).
+
 ## Aggiungere un sito
 
 Una riga in `sites.json` (`id`, `name`, `feed`, `prefix`) e i segreti con quel prefisso. Niente altro.

@@ -1,0 +1,84 @@
+name: Guardia del programma
+
+# Se i controlli dei siti si fermano (GitHub a volte non rilancia il giro), questa guardia li riavvia e te lo dice su Telegram.
+# Parte in due modi indipendenti: appena finisce un giro del programma principale, e ogni 10 minuti circa (cron di riserva).
+on:
+  workflow_run:
+    workflows: ["Pubblica nuovi articoli sui social"]
+    types: [completed]
+  schedule:
+    - cron: '3,13,23,33,43,53 * * * *'
+  workflow_dispatch:
+    inputs:
+      solo_controllo:
+        description: 'Solo controllo: dice come stanno le cose, ma non riavvia niente e non manda avvisi'
+        type: boolean
+        default: false
+
+permissions:
+  actions: write   # per rilanciare il programma
+  contents: read
+
+concurrency:
+  group: social-autopost-guardia
+  cancel-in-progress: false
+
+jobs:
+  guardia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Controlla e, se serve, riavvia
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENTO: ${{ github.event_name }}
+          SOLO: ${{ inputs.solo_controllo }}
+          CHAT: ${{ secrets.ALERT_TG_CHAT_ID }}
+          TOKEN: ${{ secrets.ALERT_TG_BOT_TOKEN || secrets.SF_TG_BOT_TOKEN }}
+        run: |
+          set -u
+          avvisa() {
+            echo "📣 $1"
+            [ "$SOLO" = "true" ] && return 0
+            if [ -n "$CHAT" ] && [ -n "$TOKEN" ]; then
+              curl -s -m 20 -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
+                --data-urlencode "chat_id=$CHAT" --data-urlencode "text=$1" >/dev/null || echo "(avviso Telegram non inviato)"
+            fi
+          }
+          stato() { gh run list -R "$REPO" -w social-autopost.yml -L 30 --json databaseId,status,createdAt,startedAt,event; }
+          attivi() { stato | jq '[.[] | select(.status=="in_progress" or .status=="queued" or .status=="waiting" or .status=="pending")] | length'; }
+          bloccati() { stato | jq '[.[] | select(.status=="in_progress" and ((now - (.startedAt|fromdateiso8601)) > 4800))] | length'; }
+
+          # Appena finito un giro: gli lascio il tempo di lanciare il successivo.
+          if [ "$EVENTO" = "workflow_run" ]; then sleep 90; fi
+
+          A=$(attivi); B=$(bloccati)
+          echo "Giri attivi: $A — bloccati da oltre 80 minuti: $B"
+
+          if [ "$B" -gt 0 ]; then
+            avvisa "⚠️ Guardia: un giro del programma risulta bloccato da oltre 80 minuti. Lo interrompo e lo riavvio."
+            if [ "$SOLO" != "true" ]; then
+              for id in $(stato | jq -r '.[] | select(.status=="in_progress" and ((now - (.startedAt|fromdateiso8601)) > 4800)) | .databaseId'); do
+                gh run cancel "$id" -R "$REPO" || true
+              done
+              sleep 10
+              gh workflow run social-autopost.yml -R "$REPO" --ref main
+            fi
+            exit 0
+          fi
+
+          if [ "$A" -eq 0 ]; then
+            sleep 25                      # ricontrollo: potrebbe essere solo il cambio tra un giro e il successivo
+            A=$(attivi)
+            if [ "$A" -eq 0 ]; then
+              if [ "$SOLO" = "true" ]; then
+                echo "⚠️ Nessun giro attivo: in modalità normale lo riavvierei e ti avviserei."
+              else
+                gh workflow run social-autopost.yml -R "$REPO" --ref main
+                avvisa "⚠️ Guardia: il programma era fermo (nessun controllo dei siti in corso). L'ho riavviato ora."
+              fi
+              exit 0
+            fi
+          fi
+          echo "✅ Tutto regolare."
