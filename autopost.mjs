@@ -473,10 +473,20 @@ async function runSite(site, dry) {
         const id = await n.post(it);
         (state.posted[it.guid] ??= {})[n.name] = new Date().toISOString();
         console.log(`✅ ${n.name}: "${it.title}" (${id})`);
+        if (!dry) await healthOk(`${site.id}|${n.name}|${it.guid}`);
       } catch (e) {
-        failures++;
         console.error(`❌ ${n.name}: "${it.title}" — ${e.message}`);
-        if (!dry) await sendAlert(`${site.id}|${n.name}|${redact(e.message).slice(0, 80)}`, await buildAlert(site, n.name, it, e, state));
+        // Se il social non ha nemmeno risposto (connessione interrotta, timeout: nessun codice HTTP) è quasi sempre un intoppo
+        // passeggero: ritento ogni 5 minuti e avviso (e segno l'esecuzione "rossa") solo se dura da 15 minuti.
+        // Se invece il social ha risposto con un errore (token, permessi, canale non trovato…) avviso subito.
+        const transient = !(e.info && e.info.http);
+        let alertNow = !transient;
+        if (!dry && transient) {
+          const since = await healthFail(`${site.id}|${n.name}|${it.guid}`);
+          alertNow = Date.now() - Date.parse(since) >= 15 * 60e3;
+        }
+        if (!transient || alertNow || dry) failures++;
+        if (!dry && alertNow) await sendAlert(`${site.id}|${n.name}|${redact(e.message).slice(0, 80)}`, await buildAlert(site, n.name, it, e, state));
       }
       await save(); // salva subito: niente doppioni se crasha dopo
     }
