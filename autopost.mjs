@@ -262,7 +262,7 @@ async function logOgImage(url) {
 async function postTelegram(item, chat = sec('TG_CHAT_ID')) {
   const previewUrl = freshPreviewUrl(item.link);
   await logOgImage(previewUrl);
-  const res = await fetch(`https://api.telegram.org/bot${sec('TG_BOT_TOKEN')}/sendMessage`, {
+  const send = () => fetch(`https://api.telegram.org/bot${sec('TG_BOT_TOKEN')}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -270,7 +270,21 @@ async function postTelegram(item, chat = sec('TG_CHAT_ID')) {
       text: telegramText(item),
       link_preview_options: { url: previewUrl, prefer_large_media: true },
     }),
+    signal: AbortSignal.timeout(30000),
   });
+  // Se la connessione con Telegram cade (nessuna risposta), riprovo subito fino a 3 volte (pausa 2s, 4s): le cadute
+  // sono intermittenti e così non aspettiamo 5 minuti per ogni tentativo. Se Telegram risponde con un errore, non ripeto.
+  let res;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      res = await send();
+      break;
+    } catch (e) {
+      if (attempt >= 3) throw e;
+      console.warn(`⚠️ Telegram: connessione caduta (${e.cause?.code || e.message}), nuovo tentativo ${attempt + 1}/3`);
+      await new Promise((r) => setTimeout(r, attempt * 2000));
+    }
+  }
   const json = await res.json().catch(() => ({}));
   if (!res.ok || !json.ok) throw new ApiError(`Telegram: ${json.description || res.status}`, { http: res.status, error_code: json.error_code, description: json.description, parameters: json.parameters, canale: chat });
   return json.result?.message_id;
