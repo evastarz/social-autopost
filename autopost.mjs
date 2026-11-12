@@ -17,6 +17,7 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { createHmac, randomBytes } from 'node:crypto';
+import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -496,8 +497,9 @@ async function runSite(site, dry) {
         const transient = !(e.info && e.info.http);
         let alertNow = !transient;
         if (!dry && transient) {
-          const since = await healthFail(`${site.id}|${n.name}|${it.guid}`);
-          alertNow = Date.now() - Date.parse(since) >= 15 * 60e3;
+          const hf = await healthFail(`${site.id}|${n.name}|${it.guid}`);
+          alertNow = Date.now() - Date.parse(hf.since) >= 15 * 60e3;
+          if (Date.now() - Date.parse(hf.runSince) >= 10 * 60e3) wantRestart(`${site.name}: ${n.name} non raggiungibile da questo computer da 10+ minuti`);
         }
         if (!transient || alertNow || dry) failures++;
         if (!dry && alertNow) await sendAlert(`${site.id}|${n.name}|${redact(e.message).slice(0, 80)}`, await buildAlert(site, n.name, it, e, state));
@@ -608,12 +610,19 @@ async function writeHealth(h) {
   await writeFile(HEALTH_FILE(), JSON.stringify(h, null, 2) + '\n');
 }
 async function healthFail(id) {
+  // since = da quando dura il problema (anche attraverso più giri); runSince = da quando dura in QUESTO giro (cioè su questo computer di GitHub)
   const h = await readHealth();
-  if (!h[id]) {
-    h[id] = { since: new Date().toISOString() };
-    await writeHealth(h);
+  const run = process.env.GITHUB_RUN_ID || 'locale';
+  const now = new Date().toISOString();
+  const before = JSON.stringify(h[id] || null);
+  const e = h[id] || { since: now, run, runSince: now };
+  if (e.run !== run) {
+    e.run = run;
+    e.runSince = now;
   }
-  return h[id].since;
+  h[id] = e;
+  if (JSON.stringify(e) !== before) await writeHealth(h);
+  return e;
 }
 async function healthOk(id) {
   const h = await readHealth();
@@ -634,6 +643,39 @@ async function logIncident(siteId, message) {
     await writeFile(INCIDENTS_FILE(), JSON.stringify(list.slice(-400), null, 1) + '\n');
   } catch {}
 }
+
+// Se in questo giro il collegamento con i siti o con un social non funziona da 10+ minuti, è quasi sempre il computer di GitHub
+// assegnato al giro (certi non parlano bene con i tuoi siti/Telegram, e restano così per tutti i 50 minuti): lancio un nuovo giro
+// (che parte su un altro computer) e fermo questo. Prima salvo lo stato, per non perdere i post già fatti.
+let NEED_RESTART = null;
+const gh = (args) => new Promise((resolve) => execFile('gh', args, { timeout: 90000 }, (err, so, se) => resolve({ ok: !err, out: `${so || ''}${se || ''}` })));
+const git = (args) => new Promise((resolve) => execFile('git', args, { timeout: 90000, cwd: HERE }, (err, so, se) => resolve({ ok: !err, out: `${so || ''}${se || ''}` })));
+async function restartOnNewRunner(motivo) {
+  const runId = process.env.GITHUB_RUN_ID;
+  const repo = process.env.GITHUB_REPOSITORY;
+  if (!runId || !repo || !process.env.GH_TOKEN) return false; // solo su GitHub
+  console.log(`🔄 Riavvio su un altro computer di GitHub: ${motivo}`);
+  await git(['add', 'state']);
+  const diff = await git(['diff', '--cached', '--quiet']);
+  if (!diff.ok) {
+    await git(['commit', '-q', '-m', 'autopost: aggiorna stato prima del riavvio']);
+    await git(['pull', '-q', '--rebase', 'origin', 'main']);
+    const push = await git(['push', '-q']);
+    if (!push.ok) {
+      console.warn(`⚠️ Salvataggio dello stato non riuscito, non riavvio (per non creare doppioni): ${push.out.slice(0, 200)}`);
+      return false;
+    }
+  }
+  const d = await gh(['workflow', 'run', 'social-autopost.yml', '-R', repo, '--ref', 'main']);
+  if (!d.ok) {
+    console.warn(`⚠️ Rilancio non riuscito: ${d.out.slice(0, 200)}`);
+    return false;
+  }
+  await gh(['run', 'cancel', runId, '-R', repo]); // il nuovo giro era in coda: parte appena questo si ferma
+  await new Promise((r) => setTimeout(r, Number(env('RESTART_WAIT_MS', '60000'))));
+  return true;
+}
+const wantRestart = (motivo) => { NEED_RESTART ??= motivo; };
 
 async function main() {
   const dry = process.argv.includes('--dry-run');
@@ -659,7 +701,9 @@ async function main() {
       // 15 minuti, così i piccoli intoppi passeggeri del server non ti disturbano.
       if (!dry && !test) {
         await logIncident(site.id, redact(e.message));
-        const since = await healthFail(site.id);
+        const hf = await healthFail(site.id);
+        const since = hf.since;
+        if (Date.now() - Date.parse(hf.runSince) >= 10 * 60e3) wantRestart(`${site.name}: sito non raggiungibile da questo computer da 10+ minuti`);
         if (Date.now() - Date.parse(since) >= 15 * 60e3) {
           failures++;
           await sendAlert(`${site.id}|sito`, // un solo avviso per sito (qualunque sia l'errore) ogni 6 ore
@@ -668,6 +712,7 @@ async function main() {
       }
     }
   }
+  if (NEED_RESTART && !dry && !test) await restartOnNewRunner(NEED_RESTART);
   if (failures) process.exitCode = 1; // run rosso su GitHub -> arriva una mail
 }
 
